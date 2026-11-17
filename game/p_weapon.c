@@ -818,7 +818,10 @@ void Blaster_Fire (edict_t *ent, vec3_t g_offset, int damage, qboolean hyper, in
 	vec3_t	forward, right;
 	vec3_t	start;
 	vec3_t	offset;
-
+	if ((!ent) || (!ent->client)) {
+		gi.dprintf("missing player entity client data\n");
+		return;
+	}
 	if (is_quad)
 		damage *= 4;
 	AngleVectors (ent->client->v_angle, forward, right, NULL);
@@ -829,7 +832,7 @@ void Blaster_Fire (edict_t *ent, vec3_t g_offset, int damage, qboolean hyper, in
 	VectorScale (forward, -2, ent->client->kick_origin);
 	ent->client->kick_angles[0] = -1;
 
-	fire_blaster (ent, start, forward, damage, 1000, effect, hyper);
+	fire_blaster (ent, start, forward, 100, 100, effect, hyper);
 
 	// send muzzle flash
 	gi.WriteByte (svc_muzzleflash);
@@ -847,19 +850,29 @@ void Blaster_Fire (edict_t *ent, vec3_t g_offset, int damage, qboolean hyper, in
 void Weapon_Blaster_Fire (edict_t *ent)
 {
 	int		damage;
+	// STEVE
+	vec3_t tempvec;
 
 	if (deathmatch->value)
 		damage = 15;
 	else
 		damage = 10;
 	Blaster_Fire (ent, vec3_origin, damage, false, EF_BLASTER);
+	// STEVE : add 2 new bolts below
+	VectorSet(tempvec, 0, 8, 0);
+	VectorAdd(tempvec, vec3_origin, tempvec);
+	Blaster_Fire(ent, tempvec, damage, false, EF_BLASTER);
+
+	VectorSet(tempvec, 0, -8, 0);
+	VectorAdd(tempvec, vec3_origin, tempvec);
+	Blaster_Fire(ent, tempvec, damage, false, EF_BLASTER);
 	ent->client->ps.gunframe++;
 }
 
-void Weapon_Blaster (edict_t *ent)
+void Weapon_Blaster (edict_t *ent) //call whenever the weapon thinks
 {
-	static int	pause_frames[]	= {19, 32, 0};
-	static int	fire_frames[]	= {5, 0};
+	static int	pause_frames[] = { 19, 32, 0 }; //stop animation from looping when the player is not firing
+	static int	fire_frames[] = { 5,6,7, 0 };  //stop animation from looping when the player is firing, how many attacks
 
 	Weapon_Generic (ent, 4, 8, 52, 55, pause_frames, fire_frames, Weapon_Blaster_Fire);
 }
@@ -904,9 +917,29 @@ void Weapon_HyperBlaster_Fire (edict_t *ent)
 				damage = 15;
 			else
 				damage = 20;
-			Blaster_Fire (ent, offset, damage, true, effect);
-			if (! ( (int)dmflags->value & DF_INFINITE_AMMO ) )
-				ent->client->pers.inventory[ent->client->ammo_index]--;
+			// first blast
+			rotation = (ent->client->ps.gunframe - 5) * 2 * M_PI / 6;
+			offset[0] = 0;
+			offset[1] = -8 * sin(rotation);
+			offset[2] = 8 * cos(rotation);
+			Blaster_Fire(ent, offset, damage, true, effect);
+
+			// second blast at a different rotation
+			rotation = (ent->client->ps.gunframe - 5) * 2 * M_PI / 6 + M_PI * 2.0 / 3.0;
+			offset[0] = 0;
+			offset[1] = -8 * sin(rotation);
+			offset[2] = 8 * cos(rotation);
+			Blaster_Fire(ent, offset, damage, true, effect);
+
+			// third blast at a different rotation
+			rotation = (ent->client->ps.gunframe - 5) * 2 * M_PI / 6 + M_PI * 4.0 / 3.0;
+			offset[0] = 0;
+			offset[1] = -8 * sin(rotation);
+			offset[2] = 8 * cos(rotation);
+			Blaster_Fire(ent, offset, damage, true, effect);
+
+			if (!((int)dmflags->value & DF_INFINITE_AMMO))
+				ent->client->pers.inventory[ent->client->ammo_index] -= ent->client->pers.weapon->quantity * 3;
 
 			ent->client->anim_priority = ANIM_ATTACK;
 			if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
